@@ -1,20 +1,14 @@
 import json
 import requests
-# from airflow import DAG
-# from airflow.operators.python import PythonOperator
-# from airflow.operators.utils.dates import days_ago
 from datetime import timedelta
 from datetime import datetime
+import time
+import logging
 
-
-
-
-# default_args = {
-#     'owner': 'dvthanh',
-#     # 'start_date': datetime(2024, 3, 1, 10, 00), # 10:00, 01/03/2024
-#     'start_date': days_ago(0),
-#     'retries': 1
-# }
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.operators.utils.dates import days_ago
+from kafka import KafkaProducer
 
 
 
@@ -48,24 +42,52 @@ def format_data(res):
 
 
 def stream_data(link):
-    res = get_data(link)
-    res = format_data(res)
-    print(json.dumps(res, indent=3))
-    
-    
 
-# dag = DAG(
-#     'user_automation',
-#     default_args = default_args,
-#     schedule_interval = '@daily',
-#     catchup = False
-# )
-#
-# streaming_task = PythonOperator(
-#     task_id = 'stream_data_from_api',
-#     python_callable = stream_data,
-#     dag = dag
-# )
+
+
+    producer = KafkaProducer(boostrap_servers=['localhost:29092'], max_block_ms=5000)
+
+    cur_time = time.time()
+    while True:
+        if time.time() > cur_time + 60: # 1min
+            break
+
+        try:
+            res = get_data(link)
+            res = format_data(res)
+            # print(json.dumps(res, indent=3))
+            producer.send('users_created', json.dumps(res).encode('utf-8'))
+
+        except Exception as exc:
+            logging.error(f'An error occured: {exc}')
+            continue
+
+
+
+
+
+
+
+
+default_args = {
+    'owner': 'dvthanh',
+    # 'start_date': datetime(2024, 3, 1, 10, 00), # 10:00, 01/03/2024
+    'start_date': days_ago(0),
+    'retries': 1
+}
+
+with DAG(
+    'user_automation',
+    default_args=default_args,
+    schedule_interval='@daily',
+    catchup=False
+) as dag:
+
+    streaming_task = PythonOperator(
+        task_id='stream_data_from_api',
+        python_callable=stream_data,
+        dag=dag
+    )
 
 
 
