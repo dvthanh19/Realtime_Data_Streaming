@@ -7,9 +7,8 @@ import logging
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.utils.dates import days_ago
+from airflow.utils.dates import days_ago
 from kafka import KafkaProducer
-
 
 
 
@@ -41,10 +40,8 @@ def format_data(res):
     return data
 
 
+
 def stream_data(link):
-
-
-
     producer = KafkaProducer(boostrap_servers=['localhost:29092'], max_block_ms=5000)
 
     cur_time = time.time()
